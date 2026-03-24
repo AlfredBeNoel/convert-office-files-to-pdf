@@ -16,17 +16,26 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:18-slim AS production
+FROM node:18-bullseye-slim AS production
 
 WORKDIR /app
 
-# Install LibreOffice and dependencies
+# Install LibreOffice with explicit PPTX/DOCX support
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libreoffice \
-    default-jre-headless \
+    libreoffice-core \
+    libreoffice-impress \
+    libreoffice-writer \
     fonts-dejavu-core \
     fontconfig \
     && rm -rf /var/lib/apt/lists/*
+
+# Ensure LibreOffice has a writable home directory
+# (prevents failures when container runs as non-root)
+ENV HOME=/tmp/libreoffice-home
+RUN mkdir -p /tmp/libreoffice-home
+
+# Validate LibreOffice installation at build time
+RUN soffice --headless --version
 
 # Copy package files
 COPY package*.json ./
