@@ -74,6 +74,7 @@ app.post('/convert', authenticateJWT, upload.single('file'), handleConvert());
 
 // @deprecated — legacy endpoints, use POST /convert instead
 app.post('/convert/docx', authenticateJWT, upload.single('file'), handleConvert('DOCX'));
+app.post('/convert/doc', authenticateJWT, upload.single('file'), handleConvert('DOC'));
 app.post('/convert/pptx', authenticateJWT, upload.single('file'), handleConvert('PPTX'));
 app.post('/convert/ppt', authenticateJWT, upload.single('file'), handleConvert('PPT'));
 
