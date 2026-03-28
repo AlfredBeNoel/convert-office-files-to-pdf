@@ -1,9 +1,9 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import { convertDocxToPdf, convertPptxToPdf, convertPptToPdf } from './converter';
+import { convertToPdf, SupportedFormat } from './converter';
 import { authenticateJWT } from './auth';
-import { validateDocxFile, validatePptxFile, validatePptFile } from './utils';
+import { validateFile, getFormatFromExtension, SUPPORTED_EXTENSIONS } from './utils';
 import { configureCors } from './cors';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -28,110 +28,54 @@ app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', service: 'document-converter-service' });
 });
 
-// Convert DOCX to PDF (protected by JWT authentication)
-app.post('/convert/docx', authenticateJWT, upload.single('file'), async (req: Request, res: Response) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+const handleConvert = (expectedFormat?: SupportedFormat) =>
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const format = expectedFormat ?? getFormatFromExtension(req.file.originalname);
+      if (!format) {
+        return res.status(400).json({
+          error: `Unsupported file type. Supported extensions: ${SUPPORTED_EXTENSIONS.join(', ')}`
+        });
+      }
+
+      const validation = validateFile(req.file, format);
+      if (!validation.valid) {
+        return res.status(400).json({ error: validation.error });
+      }
+
+      console.log(`[${format} Conversion] Starting - Size: ${(req.file.size / (1024 * 1024)).toFixed(2)}MB`);
+
+      const { pdf, metrics } = await convertToPdf(req.file.buffer, format);
+
+      console.log(`[${format} Conversion] Success - Input: ${metrics.inputSizeMB}MB, Output: ${metrics.outputSizeMB}MB, Duration: ${metrics.durationMs}ms`);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="converted.pdf"');
+      res.setHeader('X-Conversion-Duration', metrics.durationMs.toString());
+      res.setHeader('X-Input-Size-MB', metrics.inputSizeMB);
+      res.setHeader('X-Output-Size-MB', metrics.outputSizeMB);
+
+      res.send(pdf);
+    } catch (error) {
+      console.error('[Conversion] Error:', error);
+      res.status(500).json({
+        error: 'Conversion failed',
+        message: error instanceof Error ? error.message : String(error)
+      });
     }
+  };
 
-    // Validate file type
-    const validation = validateDocxFile(req.file);
-    if (!validation.valid) {
-      return res.status(400).json({ error: validation.error });
-    }
+// Current endpoint — auto-detects format from file extension
+app.post('/convert', authenticateJWT, upload.single('file'), handleConvert());
 
-    console.log(`[DOCX Conversion] Starting - Size: ${(req.file.size / (1024 * 1024)).toFixed(2)}MB`);
-    
-    const { pdf, metrics } = await convertDocxToPdf(req.file.buffer);
-    
-    console.log(`[DOCX Conversion] Success - Input: ${metrics.inputSizeMB}MB, Output: ${metrics.outputSizeMB}MB, Duration: ${metrics.durationMs}ms`);
-    
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="converted.pdf"');
-    res.setHeader('X-Conversion-Duration', metrics.durationMs.toString());
-    res.setHeader('X-Input-Size-MB', metrics.inputSizeMB);
-    res.setHeader('X-Output-Size-MB', metrics.outputSizeMB);
-    
-    res.send(pdf);
-  } catch (error) {
-    console.error('[DOCX Conversion] Error:', error);
-    res.status(500).json({
-      error: 'Conversion failed',
-      message: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
-
-// Convert PPTX to PDF (protected by JWT authentication)
-app.post('/convert/pptx', authenticateJWT, upload.single('file'), async (req: Request, res: Response) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    // Validate file type
-    const validation = validatePptxFile(req.file);
-    if (!validation.valid) {
-      return res.status(400).json({ error: validation.error });
-    }
-
-    console.log(`[PPTX Conversion] Starting - Size: ${(req.file.size / (1024 * 1024)).toFixed(2)}MB`);
-    
-    const { pdf, metrics } = await convertPptxToPdf(req.file.buffer);
-    
-    console.log(`[PPTX Conversion] Success - Input: ${metrics.inputSizeMB}MB, Output: ${metrics.outputSizeMB}MB, Duration: ${metrics.durationMs}ms`);
-    
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="converted.pdf"');
-    res.setHeader('X-Conversion-Duration', metrics.durationMs.toString());
-    res.setHeader('X-Input-Size-MB', metrics.inputSizeMB);
-    res.setHeader('X-Output-Size-MB', metrics.outputSizeMB);
-    
-    res.send(pdf);
-  } catch (error) {
-    console.error('[PPTX Conversion] Error:', error);
-    res.status(500).json({
-      error: 'Conversion failed',
-      message: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
-
-// Convert PPT to PDF (protected by JWT authentication)
-app.post('/convert/ppt', authenticateJWT, upload.single('file'), async (req: Request, res: Response) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    // Validate file type
-    const validation = validatePptFile(req.file);
-    if (!validation.valid) {
-      return res.status(400).json({ error: validation.error });
-    }
-
-    console.log(`[PPT Conversion] Starting - Size: ${(req.file.size / (1024 * 1024)).toFixed(2)}MB`);
-    
-    const { pdf, metrics } = await convertPptToPdf(req.file.buffer);
-    
-    console.log(`[PPT Conversion] Success - Input: ${metrics.inputSizeMB}MB, Output: ${metrics.outputSizeMB}MB, Duration: ${metrics.durationMs}ms`);
-    
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="converted.pdf"');
-    res.setHeader('X-Conversion-Duration', metrics.durationMs.toString());
-    res.setHeader('X-Input-Size-MB', metrics.inputSizeMB);
-    res.setHeader('X-Output-Size-MB', metrics.outputSizeMB);
-    
-    res.send(pdf);
-  } catch (error) {
-    console.error('[PPT Conversion] Error:', error);
-    res.status(500).json({
-      error: 'Conversion failed',
-      message: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
+// @deprecated — legacy endpoints, use POST /convert instead
+app.post('/convert/docx', authenticateJWT, upload.single('file'), handleConvert('DOCX'));
+app.post('/convert/pptx', authenticateJWT, upload.single('file'), handleConvert('PPTX'));
+app.post('/convert/ppt', authenticateJWT, upload.single('file'), handleConvert('PPT'));
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: express.NextFunction) => {

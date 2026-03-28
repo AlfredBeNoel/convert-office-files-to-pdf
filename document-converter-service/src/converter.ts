@@ -9,40 +9,14 @@ export interface ConversionMetrics {
   durationMs: number;
 }
 
-/**
- * Convert a DOCX file to PDF using LibreOffice
- */
-export const convertDocxToPdf = async (docxBuffer: Buffer): Promise<{ pdf: Buffer; metrics: ConversionMetrics }> => {
-  const startTime = Date.now();
-  const inputSizeMB = (docxBuffer.length / (1024 * 1024)).toFixed(2);
-  
-  try {
-    const pdfBuffer = await convertAsync(docxBuffer, '.pdf', undefined);
-    const durationMs = Date.now() - startTime;
-    const outputSizeMB = (pdfBuffer.length / (1024 * 1024)).toFixed(2);
-    
-    return {
-      pdf: pdfBuffer,
-      metrics: {
-        inputSizeMB,
-        outputSizeMB,
-        durationMs
-      }
-    };
-  } catch (error) {
-    throw new Error(`Failed to convert DOCX to PDF: ${error instanceof Error ? error.message : String(error)}`);
-  }
-};
+export type SupportedFormat = 'DOC' | 'DOCX' | 'PPTX' | 'PPT';
 
-/**
- * Convert a PPTX file to PDF using LibreOffice
- */
-export const convertPptxToPdf = async (pptxBuffer: Buffer): Promise<{ pdf: Buffer; metrics: ConversionMetrics }> => {
+export const convertToPdf = async (buffer: Buffer, format: SupportedFormat): Promise<{ pdf: Buffer; metrics: ConversionMetrics }> => {
   const startTime = Date.now();
-  const inputSizeMB = (pptxBuffer.length / (1024 * 1024)).toFixed(2);
+  const inputSizeMB = (buffer.length / (1024 * 1024)).toFixed(2);
   
   try {
-    const pdfBuffer = await convertAsync(pptxBuffer, '.pdf', undefined);
+    const pdfBuffer = await convertAsync(buffer, '.pdf', undefined);
     const durationMs = Date.now() - startTime;
     const outputSizeMB = (pdfBuffer.length / (1024 * 1024)).toFixed(2);
     
@@ -55,32 +29,7 @@ export const convertPptxToPdf = async (pptxBuffer: Buffer): Promise<{ pdf: Buffe
       }
     };
   } catch (error) {
-    throw new Error(`Failed to convert PPTX to PDF: ${error instanceof Error ? error.message : String(error)}`);
-  }
-};
-
-/**
- * Convert a PPT file to PDF using LibreOffice
- */
-export const convertPptToPdf = async (pptBuffer: Buffer): Promise<{ pdf: Buffer; metrics: ConversionMetrics }> => {
-  const startTime = Date.now();
-  const inputSizeMB = (pptBuffer.length / (1024 * 1024)).toFixed(2);
-  
-  try {
-    const pdfBuffer = await convertAsync(pptBuffer, '.pdf', undefined);
-    const durationMs = Date.now() - startTime;
-    const outputSizeMB = (pdfBuffer.length / (1024 * 1024)).toFixed(2);
-    
-    return {
-      pdf: pdfBuffer,
-      metrics: {
-        inputSizeMB,
-        outputSizeMB,
-        durationMs
-      }
-    };
-  } catch (error) {
-    throw new Error(`Failed to convert PPT to PDF: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`Failed to convert ${format} to PDF: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
