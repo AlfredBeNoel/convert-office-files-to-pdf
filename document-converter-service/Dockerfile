@@ -20,13 +20,14 @@ FROM node:18-bullseye-slim AS production
 
 WORKDIR /app
 
-# Install LibreOffice with explicit PPTX/DOCX support
+# Install LibreOffice with explicit PPTX/DOCX support + tini for zombie reaping
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-core \
     libreoffice-impress \
     libreoffice-writer \
     fonts-dejavu-core \
     fontconfig \
+    tini \
     && rm -rf /var/lib/apt/lists/*
 
 # Ensure LibreOffice has a writable home directory
@@ -53,6 +54,7 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
-# Start the application
+# Use tini as PID 1 to reap zombie LibreOffice processes
+ENTRYPOINT ["tini", "--"]
 CMD ["node", "dist/server.js"]
 
